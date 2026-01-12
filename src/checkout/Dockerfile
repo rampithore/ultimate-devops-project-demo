@@ -1,26 +1,25 @@
-# Copyright The OpenTelemetry Authors
-# SPDX-License-Identifier: Apache-2.0
-
-
 FROM golang:1.22-alpine AS builder
 
 WORKDIR /usr/src/app/
 
-RUN --mount=type=cache,target=/go/pkg/mod/ \
-    --mount=type=bind,source=./src/checkout/go.sum,target=go.sum \
-    --mount=type=bind,source=./src/checkout/go.mod,target=go.mod \
-    go mod download
+# Cache modules
+COPY go.mod go.sum ./
+RUN go mod download
 
-RUN --mount=type=cache,target=/go/pkg/mod/ \
-    --mount=type=cache,target=/root/.cache/go-build \
-    --mount=type=bind,rw,source=./src/checkout,target=. \
-    go build -ldflags "-s -w" -o /go/bin/checkout/ ./
+# Copy source
+COPY . .
 
+# Build binary (output path: /go/bin/checkout
+RUN go build -o /go/bin/checkout ./
+
+# ---------- Run stage ----------
 FROM alpine
-
 WORKDIR /usr/src/app/
+# If your app makes HTTPS calls, copy certificates
 
-COPY --from=builder /go/bin/checkout/ ./
-
+# ✅ Copy the built binary from correct location
+COPY --from=builder /go/bin/checkout ./
 EXPOSE ${CHECKOUT_PORT}
-ENTRYPOINT [ "./checkout" ]
+ENV CHECKOUT_PORT 80000
+# Run the binary
+ENTRYPOINT ["./checkout"]
